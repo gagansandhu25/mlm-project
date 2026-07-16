@@ -7,6 +7,16 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## About this project
+
+This is a multi-level-marketing (network marketing) platform: members join
+under a sponsor, sell products, and earn commission from their own sales
+and their downline's, under whichever compensation plan (unilevel, binary,
+or matrix) the business runs.
+
+- **[Functionality Guide](docs/FUNCTIONALITY.md)** — what the platform does, feature by feature: the commission engine, genealogy tree, ranks, wallet/withdrawals, the member dashboard, and the admin console.
+- **[Installation Guide](docs/INSTALLATION.md)** — getting it running, via the guided web installer or a manual setup, plus the scheduler and configuration reference.
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
