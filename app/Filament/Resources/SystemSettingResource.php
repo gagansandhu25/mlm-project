@@ -16,6 +16,10 @@ class SystemSettingResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
+    protected static ?string $navigationLabel = 'Settings (Advanced)';
+
+    protected static ?int $navigationSort = 1;
+
     public static function form(Form $form): Form
     {
         return $form
@@ -24,7 +28,16 @@ class SystemSettingResource extends Resource
                     ->required()
                     ->disabled(fn (string $operation): bool => $operation === 'edit'),
                 Forms\Components\Textarea::make('value')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    // The plan type is locked here too, not just on the
+                    // consolidated Settings page — otherwise this raw
+                    // editor would be a backdoor around that lock.
+                    ->disabled(fn (?SystemSetting $record): bool => $record?->key === 'active_plan_type'
+                        && SystemSetting::get('installed_at') !== null)
+                    ->helperText(fn (?SystemSetting $record): ?string => $record?->key === 'active_plan_type'
+                        && SystemSetting::get('installed_at') !== null
+                        ? 'Locked after install. Use the Settings page for editable settings.'
+                        : null),
                 Forms\Components\TextInput::make('group')
                     ->required(),
                 Forms\Components\Textarea::make('description')

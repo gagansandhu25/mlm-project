@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Models\Commission;
 use App\Models\Order;
+use App\Models\PersonalVolumeAccrual;
 use App\Models\User;
 use App\Models\Wallet;
 use App\Models\WithdrawalRequest;
@@ -34,6 +35,13 @@ class AdminStatsOverview extends BaseWidget
 
         $commissionsThisMonth = (float) Commission::whereIn('status', [Commission::STATUS_PENDING, Commission::STATUS_PAID])
             ->where('calculated_at', '>=', now()->startOfMonth())
+            ->sum('amount');
+
+        // Personal volume accruals live in their own table (not `commissions`),
+        // but they're still commission paid out to members, so they belong
+        // in this same figure.
+        $commissionsThisMonth += (float) PersonalVolumeAccrual::whereIn('status', [PersonalVolumeAccrual::STATUS_PENDING, PersonalVolumeAccrual::STATUS_PAID])
+            ->where('accrued_on', '>=', now()->startOfMonth())
             ->sum('amount');
 
         $walletLiability = (float) Wallet::sum('balance');

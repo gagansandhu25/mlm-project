@@ -28,8 +28,6 @@ class Commission extends Model
 
     const TYPE_MATRIX = 'matrix';
 
-    const TYPE_PERSONAL = 'personal';
-
     protected function casts(): array
     {
         return [
