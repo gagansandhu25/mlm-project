@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan *)",
+      "Bash(composer require *)",
+      "Bash(vendor/bin/pint --test)",
+      "Bash(vendor/bin/pint)",
+      "Bash(mysql --version)",
+      "Bash(mysql -h 127.0.0.1 -u root -e \"SELECT 1;\")",
+      "Bash(mysql -h 127.0.0.1 -u root -proot -e ' *)",
+      "Bash(php -r ' *)",
+      "Bash(npm run *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(mysql -h 127.0.0.1 -u root -proot mlm -e \"SELECT id, name, email, referral_code FROM users WHERE email='root@example.com';\")",
+      "Bash(chromium-cli --help)",
+      "Bash(npx --yes playwright --version)",
+      "Bash(node -e \"require\\('playwright'\\)\")",
+      "Bash(npm init *)",
+      "Bash(npm install *)",
+      "Bash(node -e ' *)",
+      "Bash(node drive.js)",
+      "Bash(node drive2.js)",
+      "Bash(pkill -f \"artisan serve\")",
+      "Bash(npx --yes @marp-team/marp-cli --version)",
+      "Bash(mkdir -p /Users/indiandollar/Documents/Projects/Products/mlm/docs/business-plan && ls /Users/indiandollar/Documents/Projects/Products/mlm/docs 2>&1)",
+      "Bash(npx --yes @marp-team/marp-cli business-plan.md -o business-plan.html)",
+      "Bash(npx --yes @marp-team/marp-cli business-plan.md --pptx -o business-plan.pptx)",
+      "Bash(node shot-deck.js)",
+      "Bash(node shot-deck2.js)"
+    ],
+    "additionalDirectories": [
+      "/Users/indiandollar/Documents/Projects/Products/mlm/docs"
+    ]
+  }
+}
