@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Commission;
 use App\Models\CommissionConfiguration;
 use App\Models\SystemSetting;
+use App\Models\Downline;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -66,7 +67,9 @@ class InstallWizardTest extends TestCase
         $admin = User::where('email', 'jane@acme.test')->first();
         $this->assertNotNull($admin);
         $this->assertSame(User::ROLE_SUPER_ADMIN, $admin->role);
-        $this->assertSame((string) $admin->id, $admin->path);
+        $this->assertTrue(
+            Downline::query()->where('ancestor_id', $admin->id)->where('descendant_id', $admin->id)->where('depth', 0)->exists()
+        );
         $this->assertNotNull($admin->email_verified_at);
 
         $this->assertSame('unilevel', SystemSetting::get('active_plan_type'));

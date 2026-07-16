@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Downline;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Services\TreeService;
@@ -23,10 +24,17 @@ class TreeServiceTest extends TestCase
     private function makeRoot(): User
     {
         $root = User::factory()->create(['depth' => 0]);
-        $root->path = (string) $root->id;
-        $root->save();
+        $this->tree->placeRoot($root);
 
         return $root;
+    }
+
+    private function closureDepth(User $ancestor, User $descendant): ?int
+    {
+        return Downline::query()
+            ->where('ancestor_id', $ancestor->id)
+            ->where('descendant_id', $descendant->id)
+            ->value('depth');
     }
 
     public function test_unilevel_places_every_recruit_directly_under_their_sponsor(): void
@@ -40,8 +48,9 @@ class TreeServiceTest extends TestCase
         $this->assertSame($root->id, $childA->parent_id);
         $this->assertSame($root->id, $childB->parent_id);
         $this->assertSame($childA->id, $grandchild->parent_id);
-        $this->assertSame("{$root->id}/{$childA->id}", $childA->path);
-        $this->assertSame("{$root->id}/{$childA->id}/{$grandchild->id}", $grandchild->path);
+        $this->assertSame(1, $this->closureDepth($root, $childA));
+        $this->assertSame(1, $this->closureDepth($childA, $grandchild));
+        $this->assertSame(2, $this->closureDepth($root, $grandchild));
         $this->assertSame(1, $childA->depth);
         $this->assertSame(2, $grandchild->depth);
 
@@ -115,6 +124,21 @@ class TreeServiceTest extends TestCase
         $this->assertSame($child->id, $ancestors[1]->id);
     }
 
+    public function test_get_ancestors_returns_root_first(): void
+    {
+        // BinaryCommissionCalculator relies on getAncestors() being
+        // root-first and reverses it to get closest-first — if this
+        // ordering ever flips silently, commission would be credited
+        // to the wrong side of the tree.
+        $root = $this->makeRoot();
+        $child = $this->tree->placeNewUser(User::factory()->make(), $root, 'unilevel');
+        $grandchild = $this->tree->placeNewUser(User::factory()->make(), $child, 'unilevel');
+
+        $ancestors = $this->tree->getAncestors($grandchild);
+
+        $this->assertSame([$root->id, $child->id], $ancestors->pluck('id')->all());
+    }
+
     public function test_get_descendants_and_total_downline(): void
     {
         $root = $this->makeRoot();
@@ -134,5 +158,18 @@ class TreeServiceTest extends TestCase
         $childB = $this->tree->placeNewUser(User::factory()->make(['sales_volume' => 250]), $root, 'unilevel');
 
         $this->assertSame(350.0, $this->tree->getTeamVolume($root));
+    }
+
+    public function test_deleting_a_user_cascades_their_closure_rows_in_both_directions(): void
+    {
+        $root = $this->makeRoot();
+        $child = $this->tree->placeNewUser(User::factory()->make(), $root, 'unilevel');
+
+        $this->assertDatabaseHas('downlines', ['ancestor_id' => $root->id, 'descendant_id' => $child->id]);
+
+        $child->delete();
+
+        $this->assertDatabaseMissing('downlines', ['descendant_id' => $child->id]);
+        $this->assertDatabaseMissing('downlines', ['ancestor_id' => $child->id]);
     }
 }

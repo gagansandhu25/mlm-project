@@ -61,9 +61,8 @@ class UserResource extends Resource
                         Forms\Components\Select::make('rank_id')
                             ->relationship('rank', 'name'),
                         Forms\Components\TextInput::make('referral_code')->disabled(),
-                        Forms\Components\TextInput::make('path')->disabled()
+                        Forms\Components\TextInput::make('depth')->disabled()->numeric()
                             ->helperText('Managed automatically by TreeService — do not edit.'),
-                        Forms\Components\TextInput::make('depth')->disabled()->numeric(),
                         Forms\Components\TextInput::make('position')->disabled(),
                     ]),
                 Forms\Components\Section::make('Performance')

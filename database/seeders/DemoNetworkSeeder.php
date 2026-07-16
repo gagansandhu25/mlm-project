@@ -35,10 +35,7 @@ class DemoNetworkSeeder extends Seeder
                 'depth' => 0,
             ]
         );
-        if (! $admin->path) {
-            $admin->path = (string) $admin->id;
-            $admin->save();
-        }
+        $tree->placeRoot($admin);
 
         $root = User::query()->firstOrCreate(
             ['email' => 'root@example.com'],
@@ -53,10 +50,7 @@ class DemoNetworkSeeder extends Seeder
                 'depth' => 0,
             ]
         );
-        if (! $root->path) {
-            $root->path = (string) $root->id;
-            $root->save();
-        }
+        $tree->placeRoot($root);
 
         $members = [$root];
 
