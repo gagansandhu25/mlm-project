@@ -90,6 +90,34 @@ class TreeServiceTest extends TestCase
         $this->assertSame('1', $spillover->position);
     }
 
+    /**
+     * Regression test: MatrixPlacementStrategy is registered as a
+     * container singleton (via PlacementServiceProvider), so it's
+     * constructed once and reused for every placement call. It must
+     * read matrix_width fresh inside findPlacement() rather than
+     * capturing it in its constructor — otherwise a long-running
+     * process would keep placing recruits under a stale width even
+     * after an admin changed the setting mid-run.
+     */
+    public function test_matrix_width_changes_take_effect_without_reconstructing_the_strategy(): void
+    {
+        SystemSetting::set('matrix_width', '1');
+
+        $root = $this->makeRoot();
+        $onlyChild = $this->tree->placeNewUser(User::factory()->make(), $root, 'matrix');
+
+        // Root's single slot (width 1) is already full, so this recruit
+        // would spill over to $onlyChild if the strategy were still
+        // using width 1 — but if the setting change below takes effect,
+        // it lands directly under $root instead, in root's newly-opened
+        // second slot.
+        SystemSetting::set('matrix_width', '2');
+        $secondChild = $this->tree->placeNewUser(User::factory()->make(), $root, 'matrix');
+
+        $this->assertSame($root->id, $secondChild->parent_id);
+        $this->assertSame('2', $secondChild->position);
+    }
+
     public function test_get_ancestors_by_level_returns_closest_ancestor_first(): void
     {
         $root = $this->makeRoot();

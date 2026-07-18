@@ -2,6 +2,8 @@
 
 namespace App\Services\Placement;
 
+use App\Models\Commission;
+use App\Models\SystemSetting;
 use App\Models\User;
 
 /**
@@ -11,10 +13,20 @@ use App\Models\User;
  */
 class MatrixPlacementStrategy implements PlacementStrategyInterface
 {
-    public function __construct(private readonly int $width = 3) {}
+    public function planType(): string
+    {
+        return Commission::TYPE_MATRIX;
+    }
 
     public function findPlacement(User $sponsor): PlacementResult
     {
+        // Read fresh per call, not baked into the constructor — this
+        // strategy is a long-lived singleton (see PlacementServiceProvider),
+        // so if matrix_width were captured at construction time, a
+        // long-running process would keep placing recruits under a
+        // stale width even after an admin changed it.
+        $width = (int) SystemSetting::get('matrix_width', 3);
+
         $queue = [$sponsor];
 
         while ($queue) {
@@ -23,7 +35,7 @@ class MatrixPlacementStrategy implements PlacementStrategyInterface
 
             $children = $node->children()->orderBy('position')->get();
 
-            if ($children->count() < $this->width) {
+            if ($children->count() < $width) {
                 return new PlacementResult($node, (string) ($children->count() + 1));
             }
 

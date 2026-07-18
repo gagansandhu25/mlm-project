@@ -12,9 +12,9 @@ use App\Models\Commission;
  */
 class MatrixCommissionCalculator extends LevelBasedCommissionCalculator
 {
-    protected function planType(): string
+    public function planType(): string
     {
-        return 'matrix';
+        return Commission::TYPE_MATRIX;
     }
 
     protected function commissionType(): string

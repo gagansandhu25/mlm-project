@@ -12,9 +12,9 @@ use App\Models\Commission;
  */
 class UnilevelCommissionCalculator extends LevelBasedCommissionCalculator
 {
-    protected function planType(): string
+    public function planType(): string
     {
-        return 'unilevel';
+        return Commission::TYPE_UNILEVEL;
     }
 
     protected function commissionType(): string

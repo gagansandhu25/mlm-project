@@ -31,6 +31,11 @@ class BinaryCommissionCalculator implements CommissionCalculatorInterface
         private readonly RankService $ranks,
     ) {}
 
+    public function planType(): string
+    {
+        return Commission::TYPE_BINARY;
+    }
+
     public function calculate(Order $order): Collection
     {
         return DB::transaction(function () use ($order) {

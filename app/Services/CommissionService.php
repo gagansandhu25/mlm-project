@@ -4,25 +4,23 @@ namespace App\Services;
 
 use App\Models\Order;
 use App\Models\SystemSetting;
-use App\Services\Commission\BinaryCommissionCalculator;
-use App\Services\Commission\MatrixCommissionCalculator;
-use App\Services\Commission\UnilevelCommissionCalculator;
+use App\Services\Commission\CommissionCalculatorRegistry;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Entry point for STEP 1-2 of the commission workflow: receives a
  * trigger (a completed order), determines the active plan type, and
- * dispatches to the matching calculator. Which plan is "active" is a
- * config value (SystemSetting `active_plan_type`) — switching plans
- * for a client is a config change, not a code change.
+ * dispatches to the matching calculator via CommissionCalculatorRegistry.
+ * Which plan is "active" is a config value (SystemSetting
+ * `active_plan_type`) — switching plans for a client is a config
+ * change, not a code change. Adding a new plan type entirely is a
+ * CommissionServiceProvider change, not a CommissionService change.
  */
 class CommissionService
 {
     public function __construct(
-        private readonly UnilevelCommissionCalculator $unilevel,
-        private readonly BinaryCommissionCalculator $binary,
-        private readonly MatrixCommissionCalculator $matrix,
+        private readonly CommissionCalculatorRegistry $calculators,
     ) {}
 
     public function calculateForOrder(Order $order): Collection
@@ -39,11 +37,6 @@ class CommissionService
 
         $planType = SystemSetting::get('active_plan_type', 'unilevel');
 
-        return match ($planType) {
-            'unilevel' => $this->unilevel->calculate($order),
-            'binary' => $this->binary->calculate($order),
-            'matrix' => $this->matrix->calculate($order),
-            default => throw new \InvalidArgumentException("Unknown plan type [{$planType}]."),
-        };
+        return $this->calculators->for($planType)->calculate($order);
     }
 }

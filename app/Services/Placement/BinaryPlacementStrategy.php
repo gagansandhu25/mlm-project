@@ -2,6 +2,7 @@
 
 namespace App\Services\Placement;
 
+use App\Models\Commission;
 use App\Models\User;
 
 /**
@@ -11,6 +12,11 @@ use App\Models\User;
  */
 class BinaryPlacementStrategy implements PlacementStrategyInterface
 {
+    public function planType(): string
+    {
+        return Commission::TYPE_BINARY;
+    }
+
     public function findPlacement(User $sponsor): PlacementResult
     {
         $queue = [$sponsor];

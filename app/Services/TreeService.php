@@ -2,12 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\SystemSetting;
 use App\Models\User;
-use App\Services\Placement\BinaryPlacementStrategy;
-use App\Services\Placement\MatrixPlacementStrategy;
 use App\Services\Placement\PlacementStrategyInterface;
-use App\Services\Placement\UnilevelPlacementStrategy;
+use App\Services\Placement\PlacementStrategyRegistry;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -20,14 +17,13 @@ use Illuminate\Support\Facades\DB;
  */
 class TreeService
 {
+    public function __construct(
+        private readonly PlacementStrategyRegistry $placementStrategies,
+    ) {}
+
     public function placementStrategyFor(string $planType): PlacementStrategyInterface
     {
-        return match ($planType) {
-            'unilevel' => new UnilevelPlacementStrategy,
-            'binary' => new BinaryPlacementStrategy,
-            'matrix' => new MatrixPlacementStrategy((int) SystemSetting::get('matrix_width', 3)),
-            default => throw new \InvalidArgumentException("Unknown plan type [{$planType}]."),
-        };
+        return $this->placementStrategies->for($planType);
     }
 
     /**

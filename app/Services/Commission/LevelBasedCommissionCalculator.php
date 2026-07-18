@@ -28,7 +28,7 @@ abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInt
         protected readonly RankService $ranks,
     ) {}
 
-    abstract protected function planType(): string;
+    abstract public function planType(): string;
 
     abstract protected function commissionType(): string;
 

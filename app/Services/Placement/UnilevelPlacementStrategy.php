@@ -2,6 +2,7 @@
 
 namespace App\Services\Placement;
 
+use App\Models\Commission;
 use App\Models\User;
 
 /**
@@ -10,6 +11,11 @@ use App\Models\User;
  */
 class UnilevelPlacementStrategy implements PlacementStrategyInterface
 {
+    public function planType(): string
+    {
+        return Commission::TYPE_UNILEVEL;
+    }
+
     public function findPlacement(User $sponsor): PlacementResult
     {
         return new PlacementResult(parent: $sponsor, position: null);
