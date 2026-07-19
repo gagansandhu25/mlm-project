@@ -28,6 +28,14 @@ class Commission extends Model
 
     const TYPE_MATRIX = 'matrix';
 
+    const TYPE_PACKAGE_TIER = 'package_tier';
+
+    // Kept distinct from TYPE_PACKAGE_TIER so a tier's per-period cap
+    // (LevelBasedCommissionCalculator::periodCommissionSum, filtered by
+    // plan_type only, no level filter) never absorbs the unconditional
+    // direct reward's payouts.
+    const TYPE_PACKAGE_TIER_DIRECT = 'package_tier_direct';
+
     protected function casts(): array
     {
         return [

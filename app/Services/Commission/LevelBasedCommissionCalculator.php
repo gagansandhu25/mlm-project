@@ -18,7 +18,11 @@ use Illuminate\Support\Facades\DB;
  * level-percentage of the sale, scaled by rank multiplier and capped
  * per period. Unilevel and Matrix commissions are identical math —
  * only the tree shape (handled upstream by TreeService/placement)
- * and the plan_type/Commission type differ.
+ * and the plan_type/Commission type differ. Subclasses that need
+ * more than this (an extra eligibility condition, or an additional
+ * payout alongside the level ladder) override meetsQualifyingCondition()
+ * and/or additionalPayouts() rather than calculate() itself, so the
+ * transaction boundary and commission_processed guard stay in one place.
  */
 abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInterface
 {
@@ -39,29 +43,8 @@ abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInt
                 return new Collection;
             }
 
-            $configs = CommissionConfiguration::query()
-                ->where('plan_type', $this->planType())
-                ->where('is_active', true)
-                ->orderBy('level')
-                ->get()
-                ->keyBy('level');
-
-            $maxLevel = (int) $configs->keys()->max();
-
-            $created = new Collection;
-
-            if ($maxLevel > 0) {
-                $buyer = $order->user;
-                $ancestorsByLevel = $this->tree->getAncestorsByLevel($buyer, $maxLevel);
-
-                foreach ($ancestorsByLevel as $level => $upline) {
-                    $commission = $this->payUpline($order, $upline, $level, $configs->get($level));
-
-                    if ($commission !== null) {
-                        $created->push($commission);
-                    }
-                }
-            }
+            $created = $this->payQualifyingLevels($order)
+                ->concat($this->additionalPayouts($order));
 
             $order->forceFill(['commission_processed' => true])->save();
 
@@ -69,9 +52,63 @@ abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInt
         });
     }
 
+    /** Pays every ancestor, up to whichever level has an active CommissionConfiguration, who qualifies. */
+    protected function payQualifyingLevels(Order $order): Collection
+    {
+        $configs = CommissionConfiguration::query()
+            ->where('plan_type', $this->planType())
+            ->where('is_active', true)
+            ->orderBy('level')
+            ->get()
+            ->keyBy('level');
+
+        $maxLevel = (int) $configs->keys()->max();
+
+        $created = new Collection;
+
+        if ($maxLevel > 0) {
+            $ancestorsByLevel = $this->tree->getAncestorsByLevel($order->user, $maxLevel);
+
+            foreach ($ancestorsByLevel as $level => $upline) {
+                $commission = $this->payUpline($order, $upline, $level, $configs->get($level));
+
+                if ($commission !== null) {
+                    $created->push($commission);
+                }
+            }
+        }
+
+        return $created;
+    }
+
+    /**
+     * Extra per-level eligibility check beyond "active + configured".
+     * No-op by default — Unilevel/Matrix pay every qualifying upline
+     * unconditionally, same as before this hook existed.
+     */
+    protected function meetsQualifyingCondition(User $upline, Order $order, CommissionConfiguration $config): bool
+    {
+        return true;
+    }
+
+    /**
+     * Any payout beyond the level ladder (e.g. a flat, unconditional
+     * reward alongside tiered commissions). Empty by default.
+     *
+     * @return Collection<int, Commission>
+     */
+    protected function additionalPayouts(Order $order): Collection
+    {
+        return new Collection;
+    }
+
     private function payUpline(Order $order, User $upline, int $level, ?CommissionConfiguration $config): ?Commission
     {
         if (! $config || $upline->status !== User::STATUS_ACTIVE) {
+            return null;
+        }
+
+        if (! $this->meetsQualifyingCondition($upline, $order, $config)) {
             return null;
         }
 
@@ -100,18 +137,49 @@ abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInt
             return null;
         }
 
+        return $this->recordPayout(
+            order: $order,
+            upline: $upline,
+            level: $level,
+            baseAmount: $baseAmount,
+            amount: $amount,
+            percentage: (float) $config->percentage,
+            rankMultiplier: $rankMultiplier,
+            planType: $this->commissionType(),
+            description: "level {$level} {$this->planType()} commission",
+        );
+    }
+
+    /**
+     * Creates the Commission row, credits the wallet, updates total
+     * earnings, logs the activity, and re-evaluates rank — the payment
+     * tail shared by every payout this calculator (and subclasses)
+     * makes, whether it came from the level ladder or an additional
+     * payout like a flat direct reward.
+     */
+    protected function recordPayout(
+        Order $order,
+        User $upline,
+        int $level,
+        float $baseAmount,
+        float $amount,
+        float $percentage,
+        float $rankMultiplier,
+        string $planType,
+        string $description,
+    ): Commission {
         $commission = Commission::create([
             'user_id' => $upline->id,
             'from_user_id' => $order->user_id,
             'order_id' => $order->id,
-            'plan_type' => $this->commissionType(),
+            'plan_type' => $planType,
             'base_amount' => $baseAmount,
             'amount' => $amount,
-            'percentage' => $config->percentage,
+            'percentage' => $percentage,
             'rank_multiplier' => $rankMultiplier,
             'level' => $level,
             'status' => Commission::STATUS_PENDING,
-            'description' => ucfirst($this->planType())." level {$level} commission from order {$order->order_number}",
+            'description' => ucfirst($description)." from order {$order->order_number}",
             'calculated_at' => now(),
         ]);
 
@@ -128,7 +196,7 @@ abstract class LevelBasedCommissionCalculator implements CommissionCalculatorInt
 
         ActivityLog::log(
             action: 'commission.earned',
-            description: "User #{$upline->id} earned {$amount} (level {$level} {$this->planType()}) from order #{$order->id}.",
+            description: "User #{$upline->id} earned {$amount} ({$description}) from order #{$order->id}.",
             userId: $upline->id,
             new: ['commission_id' => $commission->id, 'amount' => $amount],
         );

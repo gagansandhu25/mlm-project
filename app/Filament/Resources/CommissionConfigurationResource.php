@@ -3,9 +3,12 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\CommissionConfigurationResource\Pages;
+use App\Models\Commission;
 use App\Models\CommissionConfiguration;
+use App\Models\SystemSetting;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -30,7 +33,9 @@ class CommissionConfigurationResource extends Resource
                         'unilevel' => 'Unilevel',
                         'binary' => 'Binary',
                         'matrix' => 'Matrix',
+                        Commission::TYPE_PACKAGE_TIER => 'Package Tier',
                     ])
+                    ->live()
                     ->required(),
                 Forms\Components\TextInput::make('level')
                     ->helperText('Depth from the earner: 1 = direct upline.')
@@ -51,6 +56,16 @@ class CommissionConfigurationResource extends Resource
                     ->label('Cap period')
                     ->options(['daily' => 'Daily', 'weekly' => 'Weekly', 'monthly' => 'Monthly'])
                     ->default('monthly'),
+                Forms\Components\TextInput::make('settings.qualifying_amount')
+                    ->label('Qualifying amount')
+                    ->numeric()
+                    ->minValue(0)
+                    ->visible(fn (Get $get) => $get('plan_type') === Commission::TYPE_PACKAGE_TIER)
+                    ->helperText(fn () => 'Minimum amount an upline must meet to earn this tier. Leave blank/0 for no condition. Compared against: '.match (SystemSetting::get('package_tier_condition_type', 'own_package')) {
+                        'team_volume' => "the upline's team volume",
+                        'buyer_package' => "the buyer's package value",
+                        default => "the upline's own highest package purchase",
+                    }.' (set on the Settings page).'),
                 Forms\Components\Toggle::make('is_active')
                     ->default(true)
                     ->required(),

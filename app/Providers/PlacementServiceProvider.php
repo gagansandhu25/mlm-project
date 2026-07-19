@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Services\Placement\BinaryPlacementStrategy;
 use App\Services\Placement\MatrixPlacementStrategy;
+use App\Services\Placement\PackageTierPlacementStrategy;
 use App\Services\Placement\PlacementStrategyRegistry;
 use App\Services\Placement\UnilevelPlacementStrategy;
 use Illuminate\Support\ServiceProvider;
@@ -23,6 +24,7 @@ class PlacementServiceProvider extends ServiceProvider
             $app->make(UnilevelPlacementStrategy::class),
             $app->make(BinaryPlacementStrategy::class),
             $app->make(MatrixPlacementStrategy::class),
+            $app->make(PackageTierPlacementStrategy::class),
         ]));
     }
 }

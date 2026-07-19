@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'name', 'description', 'price', 'commission_value', 'image',
-    'stock', 'category', 'status',
+    'stock', 'category', 'is_package', 'status',
 ])]
 class Product extends Model
 {
@@ -24,6 +24,7 @@ class Product extends Model
         return [
             'price' => 'decimal:2',
             'commission_value' => 'decimal:2',
+            'is_package' => 'boolean',
         ];
     }
 

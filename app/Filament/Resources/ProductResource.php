@@ -38,6 +38,9 @@ class ProductResource extends Resource
                     ->numeric()
                     ->default(0),
                 Forms\Components\TextInput::make('category'),
+                Forms\Components\Toggle::make('is_package')
+                    ->label('This is a joining package')
+                    ->helperText('Used by the Package Tier plan to identify which products count toward package-based qualification.'),
                 Forms\Components\Select::make('status')
                     ->options([
                         Product::STATUS_ACTIVE => 'Active',
@@ -66,6 +69,8 @@ class ProductResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('category')
                     ->searchable(),
+                Tables\Columns\IconColumn::make('is_package')
+                    ->boolean(),
                 Tables\Columns\TextColumn::make('status')
                     ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')

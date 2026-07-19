@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Services\Commission\BinaryCommissionCalculator;
 use App\Services\Commission\CommissionCalculatorRegistry;
 use App\Services\Commission\MatrixCommissionCalculator;
+use App\Services\Commission\PackageTierCommissionCalculator;
 use App\Services\Commission\UnilevelCommissionCalculator;
 use Illuminate\Support\ServiceProvider;
 
@@ -23,6 +24,7 @@ class CommissionServiceProvider extends ServiceProvider
             $app->make(UnilevelCommissionCalculator::class),
             $app->make(BinaryCommissionCalculator::class),
             $app->make(MatrixCommissionCalculator::class),
+            $app->make(PackageTierCommissionCalculator::class),
         ]));
     }
 }
