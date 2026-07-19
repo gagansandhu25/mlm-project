@@ -17,7 +17,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable([
     'name', 'email', 'password', 'phone', 'avatar', 'role',
-    'parent_id', 'sponsor_id', 'path', 'depth', 'position',
+    'parent_id', 'sponsor_id', 'depth', 'position',
     'referral_code', 'status', 'rank_id', 'join_date', 'last_active',
     'sales_volume', 'total_earnings', 'left_volume', 'right_volume',
 ])]

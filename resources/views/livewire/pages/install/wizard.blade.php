@@ -3,6 +3,7 @@
 use App\Models\CommissionConfiguration;
 use App\Models\SystemSetting;
 use App\Models\User;
+use App\Services\TreeService;
 use Database\Seeders\RankSeeder;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -318,10 +319,10 @@ new #[Layout('layouts.install')] class extends Component
                 'depth' => 0,
             ]);
             // email_verified_at isn't mass-assignable (not in User::$fillable);
-            // direct property assignment bypasses that guard, same as `path` below.
+            // direct property assignment bypasses that guard.
             $admin->email_verified_at = now();
-            $admin->path = (string) $admin->id;
             $admin->save();
+            app(TreeService::class)->placeRoot($admin);
 
             SystemSetting::set('installed_at', now()->toDateTimeString(), 'general', 'datetime');
 

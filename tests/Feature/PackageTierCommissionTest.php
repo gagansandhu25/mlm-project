@@ -38,8 +38,7 @@ class PackageTierCommissionTest extends TestCase
     private function root(): User
     {
         $root = User::factory()->create(['depth' => 0]);
-        $root->path = (string) $root->id;
-        $root->save();
+        $this->tree->placeRoot($root);
 
         return $root;
     }

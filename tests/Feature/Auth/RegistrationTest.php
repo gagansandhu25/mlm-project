@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Services\TreeService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Volt\Volt;
 use Tests\TestCase;
@@ -23,8 +24,7 @@ class RegistrationTest extends TestCase
     public function test_new_users_can_register_with_a_valid_sponsor_code(): void
     {
         $sponsor = User::factory()->create(['depth' => 0]);
-        $sponsor->path = (string) $sponsor->id;
-        $sponsor->save();
+        app(TreeService::class)->placeRoot($sponsor);
 
         $component = Volt::test('pages.auth.register')
             ->set('name', 'Test User')

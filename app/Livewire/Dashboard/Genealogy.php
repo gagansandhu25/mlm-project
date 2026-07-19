@@ -67,7 +67,7 @@ class Genealogy extends Component
 
         $candidate = User::find($this->focusUserId);
 
-        if (! $candidate || ! $candidate->path || ! $self->path || ! str_starts_with($candidate->path, "{$self->path}/")) {
+        if (! $candidate || ! app(TreeService::class)->isDescendantOf($candidate, $self)) {
             $this->focusUserId = null;
         }
     }
