@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Commission;
 use App\Models\SystemSetting;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -52,9 +53,6 @@ class Settings extends Page implements HasForms
             'personal_volume_percentage' => (float) SystemSetting::get('personal_volume_percentage', 0),
             'minimum_payout_threshold' => (float) SystemSetting::get('minimum_payout_threshold', 50),
             'withdrawal_fee_percentage' => (float) SystemSetting::get('withdrawal_fee_percentage', 0),
-            'package_tier_direct_reward_enabled' => filter_var(SystemSetting::get('package_tier_direct_reward_enabled', true), FILTER_VALIDATE_BOOLEAN),
-            'package_tier_direct_reward_percentage' => (float) SystemSetting::get('package_tier_direct_reward_percentage', 5),
-            'package_tier_condition_type' => SystemSetting::get('package_tier_condition_type', 'own_package'),
         ]);
     }
 
@@ -84,14 +82,18 @@ class Settings extends Page implements HasForms
                             ])
                             ->required()
                             ->live()
-                            ->disabled($installed)
+                            //->disabled($installed)
                             // disabled() implies dehydrated(false) by default,
                             // which would drop this key from getState()
                             // entirely and make save() write null over it.
                             ->dehydrated()
-                            ->helperText($installed
-                                ? 'Locked after install — changing the network plan for a live business retroactively changes how existing commissions are interpreted.'
-                                : null),
+                            ->helperText(fn (Get $get) => match ($get('active_plan_type')) {
+                                'unilevel' => 'Every direct-line ancestor, up to a configured depth, earns a percentage of the sale — unconditionally.',
+                                'binary' => 'Two legs (left/right) per member. Ancestors earn a pairing bonus once both legs carry matching volume.',
+                                'matrix' => 'Like Unilevel, but placement is limited to a fixed width per node (e.g. 3 wide) before spilling over.',
+                                Commission::TYPE_PACKAGE_TIER => 'Unilevel-style placement. Pays a flat direct referral reward on every package sale, plus up to several commission tiers — each tier only unlocks once the earner meets its qualifying condition. Configure the reward, condition, and tiers on the Package Tier Plan page.',
+                                default => null,
+                            }),
                         TextInput::make('matrix_width')
                             ->label('Matrix width')
                             ->numeric()
@@ -124,36 +126,11 @@ class Settings extends Page implements HasForms
                             ->required()
                             ->visible(fn (Get $get) => $get('personal_volume_commission_enabled'))
                             ->dehydratedWhenHidden(),
-                    ]),
-
-                Section::make('Package Tier Plan')
-                    ->columns(2)
-                    ->schema([
-                        Toggle::make('package_tier_direct_reward_enabled')
-                            ->label('Direct referral reward enabled')
-                            ->live()
+                        Placeholder::make('package_tier_note')
+                            ->label('')
+                            ->content('The direct reward, tier qualifying condition, and the tiers themselves are configured on the dedicated Package Tier Plan page.')
                             ->visible(fn (Get $get) => $get('active_plan_type') === Commission::TYPE_PACKAGE_TIER)
-                            ->dehydratedWhenHidden(),
-                        TextInput::make('package_tier_direct_reward_percentage')
-                            ->label('Direct referral reward percentage')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->suffix('%')
-                            ->required()
-                            ->visible(fn (Get $get) => $get('active_plan_type') === Commission::TYPE_PACKAGE_TIER)
-                            ->dehydratedWhenHidden(),
-                        Select::make('package_tier_condition_type')
-                            ->label('Tier qualifying condition')
-                            ->options([
-                                'own_package' => "Earner's own package purchase",
-                                'team_volume' => "Earner's team volume",
-                                'buyer_package' => "Buyer's package value",
-                            ])
-                            ->helperText('What each tier\'s qualifying amount (set per level under Commission Plans) is checked against.')
-                            ->required()
-                            ->visible(fn (Get $get) => $get('active_plan_type') === Commission::TYPE_PACKAGE_TIER)
-                            ->dehydratedWhenHidden(),
+                            ->columnSpanFull(),
                     ]),
 
                 Section::make('Payouts')
@@ -198,9 +175,6 @@ class Settings extends Page implements HasForms
         SystemSetting::set('personal_volume_percentage', (string) $value('personal_volume_percentage'), 'commission', 'decimal');
         SystemSetting::set('minimum_payout_threshold', (string) $value('minimum_payout_threshold'), 'payout', 'decimal');
         SystemSetting::set('withdrawal_fee_percentage', (string) $value('withdrawal_fee_percentage'), 'payout', 'decimal');
-        SystemSetting::set('package_tier_direct_reward_enabled', $value('package_tier_direct_reward_enabled') ? 'true' : 'false', 'commission', 'boolean');
-        SystemSetting::set('package_tier_direct_reward_percentage', (string) $value('package_tier_direct_reward_percentage'), 'commission', 'decimal');
-        SystemSetting::set('package_tier_condition_type', $value('package_tier_condition_type'), 'commission', 'string');
 
         Notification::make()
             ->title('Settings saved')

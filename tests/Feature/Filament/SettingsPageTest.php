@@ -66,11 +66,11 @@ class SettingsPageTest extends TestCase
         $this->assertEquals(75, SystemSetting::get('minimum_payout_threshold'));
     }
 
-    public function test_active_plan_type_cannot_be_changed_once_installed(): void
+    public function test_active_plan_type_is_editable(): void
     {
         Livewire::actingAs($this->admin())
             ->test(Settings::class)
-            ->assertFormFieldIsDisabled('active_plan_type');
+            ->assertFormFieldIsEnabled('active_plan_type');
     }
 
     /**
