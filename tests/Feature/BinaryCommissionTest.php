@@ -91,6 +91,7 @@ class BinaryCommissionTest extends TestCase
         $commission = Commission::where('user_id', $root->id)->sole();
         $this->assertEquals(6.00, $commission->amount); // matched 60 * 10%
         $this->assertSame(Commission::TYPE_BINARY, $commission->plan_type);
+        $this->assertSame(User::POSITION_RIGHT, $commission->position); // the pairing was triggered by the right-leg order
 
         $root->refresh();
         $this->assertEquals(40.00, $root->left_volume); // 100 - 60 matched, carries forward

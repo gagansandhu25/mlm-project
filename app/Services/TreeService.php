@@ -4,8 +4,8 @@ namespace App\Services;
 
 use App\Models\Downline;
 use App\Models\User;
+use App\Services\Modules\PlanModuleRegistry;
 use App\Services\Placement\PlacementStrategyInterface;
-use App\Services\Placement\PlacementStrategyRegistry;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -21,12 +21,12 @@ use Illuminate\Support\Facades\DB;
 class TreeService
 {
     public function __construct(
-        private readonly PlacementStrategyRegistry $placementStrategies,
+        private readonly PlanModuleRegistry $modules,
     ) {}
 
     public function placementStrategyFor(string $planType): PlacementStrategyInterface
     {
-        return $this->placementStrategies->for($planType);
+        return $this->modules->for($planType)->placementStrategy();
     }
 
     /**
@@ -204,5 +204,27 @@ class TreeService
     public function getDirectSponsors(User $user): Collection
     {
         return $user->referrals()->get();
+    }
+
+    /**
+     * $user's 1-indexed position among their own parent's direct
+     * children, ordered by id (insertion/placement order) — deliberately
+     * independent of the plan-specific `position` column, whose meaning
+     * differs per plan (null for Unilevel, left/right for Binary, a
+     * numeric string for Matrix). Null for a user with no parent (root).
+     */
+    public function siblingRank(User $user): ?int
+    {
+        if ($user->parent_id === null) {
+            return null;
+        }
+
+        $rank = User::query()
+            ->where('parent_id', $user->parent_id)
+            ->orderBy('id')
+            ->pluck('id')
+            ->search($user->id);
+
+        return $rank === false ? null : $rank + 1;
     }
 }

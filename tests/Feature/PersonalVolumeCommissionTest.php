@@ -8,7 +8,7 @@ use App\Models\Rank;
 use App\Models\SystemSetting;
 use App\Models\User;
 use App\Models\Wallet;
-use App\Services\Commission\PersonalVolumeCommissionService;
+use App\Modules\Income\PersonalVolume\PersonalVolumeCommissionService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

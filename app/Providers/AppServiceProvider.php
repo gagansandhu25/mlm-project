@@ -35,11 +35,11 @@ class AppServiceProvider extends ServiceProvider
         // the wizard runs `php artisan migrate`, with no code needed to
         // "switch back" — the next request just sees the tables exist.
         try {
-            if (! Schema::hasTable('sessions')) {
+            if (config('session.driver') === 'database' && ! Schema::hasTable('sessions')) {
                 config(['session.driver' => 'file']);
             }
 
-            if (! Schema::hasTable('cache')) {
+            if (config('cache.default') === 'database' && ! Schema::hasTable('cache')) {
                 config(['cache.default' => 'file']);
             }
         } catch (\Throwable) {

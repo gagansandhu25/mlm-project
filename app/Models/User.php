@@ -20,6 +20,7 @@ use Illuminate\Notifications\Notifiable;
     'parent_id', 'sponsor_id', 'depth', 'position',
     'referral_code', 'status', 'rank_id', 'join_date', 'last_active',
     'sales_volume', 'total_earnings', 'left_volume', 'right_volume',
+    'left_count', 'right_count',
 ])]
 #[Hidden(['password', 'remember_token'])]
 class User extends Authenticatable implements FilamentUser, MustVerifyEmail
@@ -54,6 +55,8 @@ class User extends Authenticatable implements FilamentUser, MustVerifyEmail
             'total_earnings' => 'decimal:2',
             'left_volume' => 'decimal:2',
             'right_volume' => 'decimal:2',
+            'left_count' => 'integer',
+            'right_count' => 'integer',
             'depth' => 'integer',
         ];
     }

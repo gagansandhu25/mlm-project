@@ -4,6 +4,8 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\CommissionConfigurationResource\Pages;
 use App\Models\CommissionConfiguration;
+use App\Services\Modules\PlanModule;
+use App\Services\Modules\PlanModuleRegistry;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -11,11 +13,13 @@ use Filament\Tables;
 use Filament\Tables\Table;
 
 /**
- * Covers unilevel/binary/matrix only. Package Tier's rows in this same
- * table are managed exclusively through the dedicated Package Tier
- * Plan page (App\Filament\Pages\PackageTierPlan), which replaces its
- * rows wholesale on every save — editing them here too would create a
- * second, silently-overwritten source of truth for the same data.
+ * Covers only plan modules with no dedicatedSettingsPage() of their own
+ * (Unilevel/Binary/Matrix today). A module whose config doesn't fit a
+ * generic level/percentage row (e.g. a reorderable tier ladder with its
+ * own qualifying-condition picker) declares its own dedicated page and
+ * is deliberately excluded here — editing its rows through this generic
+ * CRUD too would create a second, silently-overwritten source of truth
+ * for the same data.
  */
 class CommissionConfigurationResource extends Resource
 {
@@ -27,17 +31,22 @@ class CommissionConfigurationResource extends Resource
 
     protected static ?string $navigationLabel = 'Commission Plans';
 
+    /** @return array<string, string> plan_type => label, excluding modules with their own dedicated settings page */
+    private static function planTypeOptions(): array
+    {
+        return app(PlanModuleRegistry::class)->all()
+            ->reject(fn (PlanModule $module) => $module->dedicatedSettingsPage() !== null)
+            ->mapWithKeys(fn (PlanModule $module) => [$module->key() => $module->label()])
+            ->all();
+    }
+
     public static function form(Form $form): Form
     {
         return $form
             ->columns(2)
             ->schema([
                 Forms\Components\Select::make('plan_type')
-                    ->options([
-                        'unilevel' => 'Unilevel',
-                        'binary' => 'Binary',
-                        'matrix' => 'Matrix',
-                    ])
+                    ->options(fn () => self::planTypeOptions())
                     ->required(),
                 Forms\Components\TextInput::make('level')
                     ->helperText('Depth from the earner: 1 = direct upline.')

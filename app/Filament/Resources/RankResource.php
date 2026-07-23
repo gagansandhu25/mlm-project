@@ -39,8 +39,11 @@ class RankResource extends Resource
                     ->numeric()
                     ->default(1),
                 Forms\Components\TextInput::make('rank_commission_rate')
+                    ->label('Fixed yield monthly rate')
+                    ->helperText('Used by the Fixed Yield Investment bonus — the monthly rate this rank earns on invested capital.')
                     ->required()
                     ->numeric()
+                    ->suffix('%')
                     ->default(0),
                 Forms\Components\Toggle::make('is_active')
                     ->required(),
@@ -68,7 +71,9 @@ class RankResource extends Resource
                     ->numeric()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('rank_commission_rate')
+                    ->label('Fixed yield monthly rate')
                     ->numeric()
+                    ->suffix('%')
                     ->sortable(),
                 Tables\Columns\IconColumn::make('is_active')
                     ->boolean(),

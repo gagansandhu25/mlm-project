@@ -32,6 +32,12 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
+            // Plan/income modules may ship their own Filament page or
+            // resource (e.g. app/Modules/Income/PersonalVolume/Filament/PersonalVolumeAccrualResource.php)
+            // instead of a generic Settings-page field — discovered here
+            // so a module never needs this file touched to register its UI.
+            ->discoverResources(in: app_path('Modules'), for: 'App\\Modules')
+            ->discoverPages(in: app_path('Modules'), for: 'App\\Modules')
             ->pages([
                 Pages\Dashboard::class,
             ])

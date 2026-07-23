@@ -1,0 +1,25 @@
+<?php
+
+namespace App\Modules\Plans\Unilevel;
+
+use App\Models\Commission;
+use App\Models\User;
+use App\Services\Placement\PlacementResult;
+use App\Services\Placement\PlacementStrategyInterface;
+
+/**
+ * Unilevel trees have unlimited width: a recruit is always placed
+ * directly under their sponsor.
+ */
+class UnilevelPlacementStrategy implements PlacementStrategyInterface
+{
+    public function planType(): string
+    {
+        return Commission::TYPE_UNILEVEL;
+    }
+
+    public function findPlacement(User $sponsor): PlacementResult
+    {
+        return new PlacementResult(parent: $sponsor, position: null);
+    }
+}

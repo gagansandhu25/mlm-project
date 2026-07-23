@@ -8,6 +8,6 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::command('commission:personal-volume-daily')
+Schedule::command('income:run-scheduled')
     ->daily()
     ->withoutOverlapping();

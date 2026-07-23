@@ -154,7 +154,7 @@ class TreeServiceTest extends TestCase
 
     public function test_get_ancestors_returns_root_first(): void
     {
-        // BinaryCommissionCalculator relies on getAncestors() being
+        // BinaryPairingCommissionModule relies on getAncestors() being
         // root-first and reverses it to get closest-first — if this
         // ordering ever flips silently, commission would be credited
         // to the wrong side of the tree.
@@ -186,6 +186,30 @@ class TreeServiceTest extends TestCase
         $childB = $this->tree->placeNewUser(User::factory()->make(['sales_volume' => 250]), $root, 'unilevel');
 
         $this->assertSame(350.0, $this->tree->getTeamVolume($root));
+    }
+
+    public function test_sibling_rank_orders_children_by_placement_regardless_of_plan_position(): void
+    {
+        $root = $this->makeRoot();
+
+        $first = $this->tree->placeNewUser(User::factory()->make(), $root, 'unilevel');
+        $second = $this->tree->placeNewUser(User::factory()->make(), $root, 'unilevel');
+        $third = $this->tree->placeNewUser(User::factory()->make(), $root, 'unilevel');
+
+        // Unilevel never sets `position` at all — sibling rank has to
+        // come from placement order (id), not that column.
+        $this->assertNull($first->position);
+
+        $this->assertSame(1, $this->tree->siblingRank($first));
+        $this->assertSame(2, $this->tree->siblingRank($second));
+        $this->assertSame(3, $this->tree->siblingRank($third));
+    }
+
+    public function test_sibling_rank_is_null_for_a_user_with_no_parent(): void
+    {
+        $root = $this->makeRoot();
+
+        $this->assertNull($this->tree->siblingRank($root));
     }
 
     public function test_deleting_a_user_cascades_their_closure_rows_in_both_directions(): void

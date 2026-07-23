@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
     'user_id', 'from_user_id', 'order_id', 'plan_type', 'base_amount', 'amount',
-    'percentage', 'rank_multiplier', 'level', 'position', 'status',
+    'percentage', 'rank_multiplier', 'level', 'position', 'status', 'units_matched',
     'description', 'calculated_at', 'paid_at',
 ])]
 class Commission extends Model
@@ -28,13 +28,25 @@ class Commission extends Model
 
     const TYPE_MATRIX = 'matrix';
 
-    const TYPE_PACKAGE_TIER = 'package_tier';
+    // Distinct plan_type values so a plan's per-period cap
+    // (LevelLadderPayer::periodCommissionSum, filtered by plan_type
+    // only, no level filter) never absorbs an income module's payouts,
+    // even when both pay the same upline from the same order.
+    const TYPE_DIRECT_REFERRAL_BONUS = 'direct_referral_bonus';
 
-    // Kept distinct from TYPE_PACKAGE_TIER so a tier's per-period cap
-    // (LevelBasedCommissionCalculator::periodCommissionSum, filtered by
-    // plan_type only, no level filter) never absorbs the unconditional
-    // direct reward's payouts.
-    const TYPE_PACKAGE_TIER_DIRECT = 'package_tier_direct';
+    const TYPE_MULTI_TIER_REFERRAL_BONUS = 'multi_tier_referral_bonus';
+
+    const TYPE_SIDELINE_GROWTH_BONUS = 'sideline_growth_bonus';
+
+    // Kept distinct from each other (self payout vs. pool payout) for
+    // the same reason — a future cap on one must never absorb the other.
+    const TYPE_HYBRID_BINARY_MATCHING = 'hybrid_binary_matching';
+
+    const TYPE_HYBRID_BINARY_POOL = 'hybrid_binary_pool';
+
+    const TYPE_CONFIGURABLE_BINARY_MATCHING = 'configurable_binary_matching';
+
+    const TYPE_CONFIGURABLE_BINARY_POOL = 'configurable_binary_pool';
 
     protected function casts(): array
     {
@@ -44,6 +56,7 @@ class Commission extends Model
             'percentage' => 'decimal:2',
             'rank_multiplier' => 'decimal:2',
             'level' => 'integer',
+            'units_matched' => 'decimal:4',
             'calculated_at' => 'datetime',
             'paid_at' => 'datetime',
         ];

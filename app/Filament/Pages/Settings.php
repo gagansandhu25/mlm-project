@@ -2,9 +2,13 @@
 
 namespace App\Filament\Pages;
 
-use App\Models\Commission;
 use App\Models\SystemSetting;
+use App\Services\Modules\IncomeModule;
+use App\Services\Modules\IncomeModuleRegistry;
+use App\Services\Modules\PlanModule;
+use App\Services\Modules\PlanModuleRegistry;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Component;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -24,6 +28,10 @@ use Filament\Pages\Page;
  * generic SystemSettingResource's one-row-at-a-time raw key/value CRUD.
  * `installed_at` is deliberately excluded — it's a system marker set
  * once by the install wizard, not a setting an admin edits.
+ *
+ * Plan-specific and income-module-specific fields are never hardcoded
+ * here — they're pulled from PlanModuleRegistry/IncomeModuleRegistry, so
+ * adding a new plan or bonus type never means editing this page.
  */
 class Settings extends Page implements HasForms
 {
@@ -43,23 +51,28 @@ class Settings extends Page implements HasForms
 
     public function mount(): void
     {
-        $this->form->fill([
+        $data = [
             'company_name' => SystemSetting::get('company_name'),
             'support_email' => SystemSetting::get('support_email'),
             'active_plan_type' => SystemSetting::get('active_plan_type', 'unilevel'),
-            'matrix_width' => (int) SystemSetting::get('matrix_width', 3),
-            'binary_pair_percentage' => (float) SystemSetting::get('binary_pair_percentage', 10),
-            'personal_volume_commission_enabled' => filter_var(SystemSetting::get('personal_volume_commission_enabled', false), FILTER_VALIDATE_BOOLEAN),
-            'personal_volume_percentage' => (float) SystemSetting::get('personal_volume_percentage', 0),
             'minimum_payout_threshold' => (float) SystemSetting::get('minimum_payout_threshold', 50),
             'withdrawal_fee_percentage' => (float) SystemSetting::get('withdrawal_fee_percentage', 0),
-        ]);
+        ];
+
+        foreach ($this->planModules()->all() as $module) {
+            $data = [...$data, ...$module->settingsData()];
+        }
+
+        foreach ($this->incomeModules()->all() as $module) {
+            $data["income_enabled_{$module->key()}"] = $module->isEnabled();
+            $data = [...$data, ...$module->settingsData()];
+        }
+
+        $this->form->fill($data);
     }
 
     public function form(Form $form): Form
     {
-        $installed = SystemSetting::get('installed_at') !== null;
-
         return $form
             ->schema([
                 Section::make('General')
@@ -69,69 +82,29 @@ class Settings extends Page implements HasForms
                         TextInput::make('support_email')->email()->required(),
                     ]),
 
-                Section::make('Commission Plan')
+                Section::make('Placement')
+                    ->description('Where new recruits land in the tree. Purely structural — which commissions actually get paid is configured entirely under Income below.')
                     ->columns(2)
                     ->schema([
                         Select::make('active_plan_type')
                             ->label('Active plan')
-                            ->options([
-                                'unilevel' => 'Unilevel',
-                                'binary' => 'Binary',
-                                'matrix' => 'Matrix',
-                                Commission::TYPE_PACKAGE_TIER => 'Package Tier',
-                            ])
+                            ->options(fn () => $this->planModules()->options())
                             ->required()
                             ->live()
-                            //->disabled($installed)
                             // disabled() implies dehydrated(false) by default,
                             // which would drop this key from getState()
                             // entirely and make save() write null over it.
                             ->dehydrated()
-                            ->helperText(fn (Get $get) => match ($get('active_plan_type')) {
-                                'unilevel' => 'Every direct-line ancestor, up to a configured depth, earns a percentage of the sale — unconditionally.',
-                                'binary' => 'Two legs (left/right) per member. Ancestors earn a pairing bonus once both legs carry matching volume.',
-                                'matrix' => 'Like Unilevel, but placement is limited to a fixed width per node (e.g. 3 wide) before spilling over.',
-                                Commission::TYPE_PACKAGE_TIER => 'Unilevel-style placement. Pays a flat direct referral reward on every package sale, plus up to several commission tiers — each tier only unlocks once the earner meets its qualifying condition. Configure the reward, condition, and tiers on the Package Tier Plan page.',
-                                default => null,
-                            }),
-                        TextInput::make('matrix_width')
-                            ->label('Matrix width')
-                            ->numeric()
-                            ->minValue(1)
-                            ->required()
-                            ->visible(fn (Get $get) => $get('active_plan_type') === 'matrix')
-                            // dehydrated() alone isn't enough for a field
-                            // hidden via visible() — Filament gates that
-                            // case separately. Without this, switching away
-                            // from matrix would null out its stored width.
-                            ->dehydratedWhenHidden(),
-                        TextInput::make('binary_pair_percentage')
-                            ->label('Binary pairing percentage')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->suffix('%')
-                            ->required()
-                            ->visible(fn (Get $get) => $get('active_plan_type') === 'binary')
-                            ->dehydratedWhenHidden(),
-                        Toggle::make('personal_volume_commission_enabled')
-                            ->label('Daily personal volume commission enabled')
-                            ->live(),
-                        TextInput::make('personal_volume_percentage')
-                            ->label('Personal volume percentage (daily)')
-                            ->numeric()
-                            ->minValue(0)
-                            ->maxValue(100)
-                            ->suffix('%')
-                            ->required()
-                            ->visible(fn (Get $get) => $get('personal_volume_commission_enabled'))
-                            ->dehydratedWhenHidden(),
-                        Placeholder::make('package_tier_note')
-                            ->label('')
-                            ->content('The direct reward, tier qualifying condition, and the tiers themselves are configured on the dedicated Package Tier Plan page.')
-                            ->visible(fn (Get $get) => $get('active_plan_type') === Commission::TYPE_PACKAGE_TIER)
-                            ->columnSpanFull(),
+                            ->helperText(fn (Get $get): ?string => $this->planModules()->all()
+                                ->first(fn (PlanModule $m) => $m->key() === $get('active_plan_type'))
+                                ?->description()),
+
+                        ...$this->planSpecificFields(),
                     ]),
+
+                Section::make('Income')
+                    ->description('Every way this business pays a member — base plan commissions and stacked bonuses alike. Any combination can be enabled at once.')
+                    ->schema($this->incomeModuleSections()),
 
                 Section::make('Payouts')
                     ->columns(2)
@@ -154,6 +127,110 @@ class Settings extends Page implements HasForms
             ->statePath('data');
     }
 
+    /** @return array<\Filament\Forms\Components\Component> */
+    private function planSpecificFields(): array
+    {
+        $fields = [];
+
+        foreach ($this->planModules()->all() as $module) {
+            foreach ($module->settingsSchema() as $field) {
+                $fields[] = $field
+                    ->visible(fn (Get $get): bool => $get('active_plan_type') === $module->key())
+                    ->dehydratedWhenHidden();
+            }
+
+            if ($module->dedicatedSettingsPage() !== null) {
+                $pageClass = $module->dedicatedSettingsPage();
+
+                $fields[] = Placeholder::make("dedicated_page_{$module->key()}")
+                    ->label('')
+                    ->content("Configure {$module->label()} on its dedicated ".'"'.$pageClass::getNavigationLabel().'" page.')
+                    ->visible(fn (Get $get): bool => $get('active_plan_type') === $module->key())
+                    ->columnSpanFull();
+            }
+        }
+
+        return $fields;
+    }
+
+    /**
+     * One bordered, collapsible Section per income module — rather than
+     * flattening every bonus's fields into a single shared section —
+     * so it stays clear at a glance which fields belong to which bonus
+     * as the number of enabled bonuses grows. Starts collapsed for a
+     * currently-disabled bonus to keep the page short; the admin can
+     * still expand it to turn the bonus on.
+     *
+     * @return array<Section>
+     */
+    private function incomeModuleSections(): array
+    {
+        return $this->incomeModules()->all()
+            ->map(function (IncomeModule $module) {
+                $fields = [
+                    Toggle::make("income_enabled_{$module->key()}")
+                        ->label('Enabled')
+                        ->live()
+                        ->columnSpanFull(),
+                ];
+
+                foreach ($module->settingsSchema() as $field) {
+                    $fields[] = $this->gateFieldByModuleEnabled($field, $module);
+                }
+
+                if ($module->dedicatedSettingsPage() !== null) {
+                    $pageClass = $module->dedicatedSettingsPage();
+
+                    $fields[] = Placeholder::make("dedicated_page_{$module->key()}")
+                        ->label('')
+                        ->content("Configure {$module->label()} on its dedicated ".'"'.$pageClass::getNavigationLabel().'" page.')
+                        ->visible(fn (Get $get): bool => (bool) $get("income_enabled_{$module->key()}"))
+                        ->columnSpanFull();
+                }
+
+                return Section::make($module->label())
+                    ->description($module->description())
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(! $module->isEnabled())
+                    ->schema($fields);
+            })
+            ->all();
+    }
+
+    /**
+     * Wraps $field's own visible() condition — if it already has one,
+     * e.g. Configurable Binary Matching's own cascading basis/rule/
+     * formula dropdowns — with this module's enabled toggle, instead of
+     * overwriting it outright. Filament's visible() replaces the
+     * condition wholesale (last call wins — see
+     * Filament\Forms\Components\Concerns\CanBeHidden::visible()), so
+     * the previous plain `$field->visible(fn (Get $get) => ...)` here
+     * silently clobbered any per-field visibility a module's own
+     * settingsSchema() had already set, making every one of its fields
+     * appear at once regardless of which strategy was actually
+     * selected. Reading the field's own condition via Closure::bind is
+     * necessary because CanBeHidden's $isVisible property is protected
+     * and has no public getter; evaluating it lazily inside the new
+     * closure (rather than eagerly now) preserves normal Filament
+     * reactivity for modules with no condition of their own too, since
+     * $field->evaluate(true) is just `true`.
+     */
+    private function gateFieldByModuleEnabled(Component $field, IncomeModule $module): Component
+    {
+        $ownCondition = \Closure::bind(fn () => $this->isVisible, $field, get_class($field))();
+
+        return $field
+            ->visible(function (Get $get) use ($field, $ownCondition, $module): bool {
+                if (! (bool) $get("income_enabled_{$module->key()}")) {
+                    return false;
+                }
+
+                return $field->evaluate($ownCondition);
+            })
+            ->dehydratedWhenHidden();
+    }
+
     public function save(): void
     {
         $state = $this->form->getState();
@@ -169,17 +246,30 @@ class Settings extends Page implements HasForms
         SystemSetting::set('company_name', $value('company_name'), 'general', 'string');
         SystemSetting::set('support_email', $value('support_email'), 'general', 'string');
         SystemSetting::set('active_plan_type', $value('active_plan_type'), 'commission', 'string');
-        SystemSetting::set('matrix_width', (string) $value('matrix_width'), 'commission', 'integer');
-        SystemSetting::set('binary_pair_percentage', (string) $value('binary_pair_percentage'), 'commission', 'integer');
-        SystemSetting::set('personal_volume_commission_enabled', $value('personal_volume_commission_enabled') ? 'true' : 'false', 'commission', 'boolean');
-        SystemSetting::set('personal_volume_percentage', (string) $value('personal_volume_percentage'), 'commission', 'decimal');
         SystemSetting::set('minimum_payout_threshold', (string) $value('minimum_payout_threshold'), 'payout', 'decimal');
         SystemSetting::set('withdrawal_fee_percentage', (string) $value('withdrawal_fee_percentage'), 'payout', 'decimal');
+
+        $this->planModules()->for($value('active_plan_type'))->saveSettings($state);
+
+        foreach ($this->incomeModules()->all() as $module) {
+            $module->setEnabled((bool) $value("income_enabled_{$module->key()}"));
+            $module->saveSettings($state);
+        }
 
         Notification::make()
             ->title('Settings saved')
             ->success()
             ->send();
+    }
+
+    private function planModules(): PlanModuleRegistry
+    {
+        return app(PlanModuleRegistry::class);
+    }
+
+    private function incomeModules(): IncomeModuleRegistry
+    {
+        return app(IncomeModuleRegistry::class);
     }
 
     /**
