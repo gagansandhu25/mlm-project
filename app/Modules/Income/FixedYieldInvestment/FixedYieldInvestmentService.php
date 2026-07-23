@@ -4,7 +4,7 @@ namespace App\Modules\Income\FixedYieldInvestment;
 
 use App\Models\ActivityLog;
 use App\Models\FixedYieldDailyAccrual;
-use App\Models\FixedYieldInvestment;
+use App\Models\Order;
 use App\Models\SystemSetting;
 use App\Services\RankService;
 use App\Services\WalletService;
@@ -12,21 +12,26 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Daily fixed-yield commission: every active FixedYieldInvestment earns a
- * cash payout once per day, computed from the investor's *current* rank's
- * monthly rate (ranks.rank_commission_rate) — re-looked-up fresh every run,
- * never snapshotted at investment time, so a rank-up immediately raises the
+ * Daily fixed-yield commission: every completed package order is itself
+ * a yield-earning principal — no separate investment record to create,
+ * an order already is one. Each order earns a cash payout once per day,
+ * computed from the buyer's *current* rank's monthly rate
+ * (ranks.rank_commission_rate) — re-looked-up fresh every run, never
+ * snapshotted at purchase time, so a rank-up immediately raises the
  * rate for all remaining days. Paid out once per day by the generic
  * `income:run-scheduled` command (via FixedYieldInvestmentModule::run()) —
- * not per order, same as Personal Volume. Logged to its own
- * `fixed_yield_daily_accruals` table rather than `commissions`: this isn't
- * a network-tree payout (no from_user/level/position, and the investor is
- * paid for their own capital, not anyone else's purchase), and a dedicated
- * table lets us enforce one accrual per investment per day at the database
- * level. Each investment has its own independent 2x cap (invested_amount *
- * cap multiplier) — once total paid reaches it, the investment is marked
- * capped_out and stops accruing. Gated by the
- * `fixed_yield_investment_enabled` system setting.
+ * not per order-completion event, same as Personal Volume. Logged to its
+ * own `fixed_yield_daily_accruals` table rather than `commissions`: this
+ * isn't a network-tree payout (no from_user/level/position, and the
+ * buyer is paid for their own capital, not anyone else's purchase), and
+ * a dedicated table lets us enforce one accrual per order per day at the
+ * database level. Each order has its own independent 2x cap (order.amount
+ * * cap multiplier) — once total paid reaches it, remainingCap recomputes
+ * to zero and payOrder() simply stops creating rows for that order; there
+ * is no persisted "capped_out" flag anywhere, matching every other cap in
+ * this codebase (VolumeBasis/CountBasis/HybridBinaryMatching all
+ * recompute remaining room from a sum rather than a stored status).
+ * Gated by the `fixed_yield_investment_enabled` system setting.
  */
 class FixedYieldInvestmentService
 {
@@ -44,11 +49,12 @@ class FixedYieldInvestmentService
 
         $created = new Collection;
 
-        FixedYieldInvestment::query()
-            ->where('status', FixedYieldInvestment::STATUS_ACTIVE)
-            ->chunkById(200, function (Collection $investments) use (&$created) {
-                foreach ($investments as $investment) {
-                    $accrual = $this->payInvestment($investment);
+        Order::query()
+            ->where('status', Order::STATUS_COMPLETED)
+            ->whereHas('product', fn ($query) => $query->where('is_package', true))
+            ->chunkById(200, function (Collection $orders) use (&$created) {
+                foreach ($orders as $order) {
+                    $accrual = $this->payOrder($order);
 
                     if ($accrual !== null) {
                         $created->push($accrual);
@@ -59,9 +65,9 @@ class FixedYieldInvestmentService
         return $created;
     }
 
-    private function payInvestment(FixedYieldInvestment $investment): ?FixedYieldDailyAccrual
+    private function payOrder(Order $order): ?FixedYieldDailyAccrual
     {
-        return DB::transaction(function () use ($investment) {
+        return DB::transaction(function () use ($order) {
             $today = now()->toDateString();
 
             // whereDate(), not where(): the `date` cast serializes accrued_on
@@ -69,7 +75,7 @@ class FixedYieldInvestmentService
             // where() against "Y-m-d" would silently never match — same
             // gotcha as Personal Volume's own daily guard.
             $alreadyAccrued = FixedYieldDailyAccrual::query()
-                ->where('investment_id', $investment->id)
+                ->where('order_id', $order->id)
                 ->whereDate('accrued_on', $today)
                 ->exists();
 
@@ -77,11 +83,11 @@ class FixedYieldInvestmentService
                 return null;
             }
 
-            $user = $investment->user;
-            $investedAmount = (float) $investment->invested_amount;
+            $user = $order->user;
+            $investedAmount = (float) $order->amount; // the package's sale price — same figure every ActivePackageResolver reads for "package value"
 
-            // Always the investor's *current* rank — deliberately not
-            // snapshotted at investment time, so a rank-up mid-investment
+            // Always the buyer's *current* rank — deliberately not
+            // snapshotted at purchase time, so a rank-up mid-stream
             // raises the rate starting the very next day.
             $monthlyRate = (float) ($user->rank?->rank_commission_rate ?? 0);
             $dailyRate = $monthlyRate / 30;
@@ -96,7 +102,7 @@ class FixedYieldInvestmentService
             $capTotal = $investedAmount * $capMultiplier;
 
             $alreadyPaid = (float) FixedYieldDailyAccrual::query()
-                ->where('investment_id', $investment->id)
+                ->where('order_id', $order->id)
                 ->whereIn('status', [FixedYieldDailyAccrual::STATUS_PENDING, FixedYieldDailyAccrual::STATUS_PAID])
                 ->sum('amount');
 
@@ -104,13 +110,11 @@ class FixedYieldInvestmentService
             $amount = min($baseAmount, $remainingCap);
 
             if ($amount <= 0) {
-                $investment->forceFill(['status' => FixedYieldInvestment::STATUS_CAPPED_OUT])->save();
-
                 return null;
             }
 
             $accrual = FixedYieldDailyAccrual::create([
-                'investment_id' => $investment->id,
+                'order_id' => $order->id,
                 'accrued_on' => $today,
                 'monthly_rate' => $monthlyRate,
                 'base_amount' => $baseAmount,
@@ -132,17 +136,10 @@ class FixedYieldInvestmentService
 
             ActivityLog::log(
                 action: 'fixed_yield_investment.accrued',
-                description: "User #{$user->id} earned {$amount} (daily fixed yield) from investment #{$investment->id}.",
+                description: "User #{$user->id} earned {$amount} (daily fixed yield) from order #{$order->id}.",
                 userId: $user->id,
-                new: ['accrual_id' => $accrual->id, 'investment_id' => $investment->id, 'amount' => $amount],
+                new: ['accrual_id' => $accrual->id, 'order_id' => $order->id, 'amount' => $amount],
             );
-
-            // The cap was hit exactly on this payout — no more room for
-            // future days, so mark it capped_out now rather than waiting
-            // for a subsequent run to discover zero room remains.
-            if ($amount >= $remainingCap) {
-                $investment->forceFill(['status' => FixedYieldInvestment::STATUS_CAPPED_OUT])->save();
-            }
 
             $this->ranks->evaluate($user);
 

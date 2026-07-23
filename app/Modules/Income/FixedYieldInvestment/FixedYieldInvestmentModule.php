@@ -9,13 +9,13 @@ use Illuminate\Support\Collection;
 
 /**
  * A fixed-yield investment product — structurally unlike every other
- * income module here, since it pays the investor for their *own*
- * capital rather than an upline for someone else's purchase. Members
- * hold FixedYieldInvestment records (created by an admin today — see
- * FixedYieldInvestmentResource — there's no live purchase flow
- * anywhere in this app to hook into), each earning a daily cash yield
- * from their current rank's monthly rate, capped independently at a
- * multiple of what they invested.
+ * income module here, since it pays the buyer for their *own* capital
+ * rather than an upline for someone else's purchase. Every completed
+ * package order is automatically a yield-earning principal — no
+ * separate investment record to create — each earning a daily cash
+ * yield from the buyer's current rank's monthly rate, capped
+ * independently at a multiple of what that order was worth. See
+ * FixedYieldInvestmentService for the full mechanics.
  */
 class FixedYieldInvestmentModule implements ScheduledIncomeModule
 {

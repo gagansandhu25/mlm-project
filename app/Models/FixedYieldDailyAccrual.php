@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 #[Fillable([
-    'investment_id', 'accrued_on', 'monthly_rate',
+    'order_id', 'accrued_on', 'monthly_rate',
     'base_amount', 'amount', 'status', 'paid_at', 'description',
 ])]
 class FixedYieldDailyAccrual extends Model
@@ -32,8 +32,8 @@ class FixedYieldDailyAccrual extends Model
         ];
     }
 
-    public function investment(): BelongsTo
+    public function order(): BelongsTo
     {
-        return $this->belongsTo(FixedYieldInvestment::class, 'investment_id');
+        return $this->belongsTo(Order::class);
     }
 }

@@ -12,9 +12,10 @@ use Filament\Tables\Table;
 
 /**
  * Read-only: these rows are only ever created by
- * FixedYieldInvestmentService's daily run, never by hand — this
- * resource exists purely so an admin can see the payout history,
- * mirroring PersonalVolumeAccrualResource's own list-only shape.
+ * FixedYieldInvestmentService's daily run against a completed package
+ * order, never by hand — this resource exists purely so an admin can
+ * see the payout history, mirroring PersonalVolumeAccrualResource's
+ * own list-only shape.
  */
 class FixedYieldDailyAccrualResource extends Resource
 {
@@ -31,7 +32,7 @@ class FixedYieldDailyAccrualResource extends Resource
         return $form
             ->schema([
                 Forms\Components\Placeholder::make('investor')
-                    ->content(fn (?FixedYieldDailyAccrual $record): ?string => $record?->investment?->user?->name),
+                    ->content(fn (?FixedYieldDailyAccrual $record): ?string => $record?->order?->user?->name),
                 Forms\Components\DatePicker::make('accrued_on')->disabled(),
                 Forms\Components\TextInput::make('monthly_rate')->disabled(),
                 Forms\Components\TextInput::make('base_amount')->disabled(),
@@ -45,7 +46,7 @@ class FixedYieldDailyAccrualResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('investment.user.name')
+                Tables\Columns\TextColumn::make('order.user.name')
                     ->label('Investor')
                     ->searchable()
                     ->sortable(),
